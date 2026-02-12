@@ -57,7 +57,9 @@ jobs:
             imagemagick \
             libasound2-dev \
             pkg-config \
-            jq
+            jq \
+            libxkbcommon-x11-0 \
+            libxkbcommon-x11-dev
 
       - name: Build + test + UI e2e (from private repo script)
         shell: bash
