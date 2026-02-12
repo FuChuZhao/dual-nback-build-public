@@ -1,0 +1,84 @@
+name: build-from-private
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repo:
+        description: "Private source repo, e.g. owner/repo"
+        required: true
+        type: string
+      source_ref:
+        description: "Source ref (branch/tag/sha)"
+        required: true
+        default: "main"
+        type: string
+      artifact_name:
+        description: "Artifact name"
+        required: true
+        default: "dual-nback-ci-bundle"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout public workflow repo
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key for private source clone
+        shell: bash
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.SOURCE_REPO_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Clone private source repository
+        shell: bash
+        run: |
+          git clone --depth 1 --branch "${{ inputs.source_ref }}" \
+            "git@github.com:${{ inputs.source_repo }}.git" source
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux UI dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            xvfb \
+            xdotool \
+            imagemagick \
+            libasound2-dev \
+            pkg-config \
+            jq
+
+      - name: Build + test + UI e2e (from private repo script)
+        shell: bash
+        working-directory: source
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/cargo-target
+          CI_ARTIFACT_DIR: ${{ github.workspace }}/ci_artifacts
+          CI_RUN_UI_E2E: "1"
+        run: |
+          chmod +x tool/ci/ci-build-and-verify.sh
+          chmod +x tool/ci/ci-ui-e2e.sh
+          tool/ci/ci-build-and-verify.sh
+
+      - name: Upload CI artifact bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: |
+            ci_artifacts/summary.md
+            ci_artifacts/logs
+            ci_artifacts/screenshots
+            ci_artifacts/dual_nback_rust
+          if-no-files-found: error
+          retention-days: 1
