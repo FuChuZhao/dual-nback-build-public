@@ -24,7 +24,7 @@ permissions:
 jobs:
   build-and-verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
 
     steps:
       - name: Checkout public workflow repo
@@ -66,12 +66,15 @@ jobs:
           CARGO_TARGET_DIR: ${{ github.workspace }}/cargo-target
           CI_ARTIFACT_DIR: ${{ github.workspace }}/ci_artifacts
           CI_RUN_UI_E2E: "1"
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          WGPU_BACKEND: gl
         run: |
           chmod +x tool/ci/ci-build-and-verify.sh
           chmod +x tool/ci/ci-ui-e2e.sh
           tool/ci/ci-build-and-verify.sh
 
       - name: Upload CI artifact bundle
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_name }}
@@ -80,5 +83,5 @@ jobs:
             ci_artifacts/logs
             ci_artifacts/screenshots
             ci_artifacts/dual_nback_rust
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 1
